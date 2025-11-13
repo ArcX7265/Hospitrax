@@ -33,6 +33,19 @@ const ResourceRequestModal: React.FC<ResourceRequestModalProps> = ({ isOpen, onC
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validate that resource type is selected
+    if (!formData.resourceType) {
+      alert('Please select a resource type');
+      return;
+    }
+    
+    // Validate hospital name
+    if (!formData.hospital.trim()) {
+      alert('Please enter a hospital name');
+      return;
+    }
+    
     onSubmit(formData);
     onClose();
     setFormData({

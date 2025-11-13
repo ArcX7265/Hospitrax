@@ -40,6 +40,23 @@ const EmergencyAlert: React.FC<EmergencyAlertProps> = ({ isOpen, onClose, onSubm
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validate required fields
+    if (!formData.location.trim()) {
+      alert('Please enter a location');
+      return;
+    }
+    
+    if (!formData.contact.trim()) {
+      alert('Please enter contact information');
+      return;
+    }
+    
+    if (!formData.description.trim()) {
+      alert('Please enter a description of the emergency');
+      return;
+    }
+    
     onSubmit(formData);
     onClose();
     setFormData({

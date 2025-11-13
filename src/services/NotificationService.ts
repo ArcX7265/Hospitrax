@@ -86,18 +86,21 @@ export class NotificationService {
       timestamp: new Date(),
     };
 
-    // Check if notification should be sent based on settings
-    if (this.shouldSendNotification(newNotification)) {
-      await this.sendNotification(newNotification);
-    }
-
-    // Store in in-app list if IN_APP is among delivery channels (always store for visibility)
+    // Store in in-app list IMMEDIATELY if IN_APP is among delivery channels (for instant visibility)
     if (newNotification.deliveryChannels.includes(DeliveryChannel.IN_APP)) {
       this.notifications = [newNotification, ...this.notifications];
-      // Save to localStorage
-      this.saveNotifications();
-      // Broadcast to all subscribers (patients and doctors)
+      // Broadcast to all subscribers IMMEDIATELY (before sending to other channels)
       this.notifyListeners(this.notifications);
+      // Save to localStorage (non-blocking)
+      this.saveNotifications();
+    }
+
+    // Send to other channels asynchronously (don't wait)
+    if (this.shouldSendNotification(newNotification)) {
+      // Fire and forget - don't block on sending
+      this.sendNotification(newNotification).catch(error => {
+        console.error('Error sending notification:', error);
+      });
     }
 
     return newNotification;
@@ -105,6 +108,13 @@ export class NotificationService {
 
   // Check if notification should be sent based on user settings
   private shouldSendNotification(notification: Notification): boolean {
+    // Emergency, urgent, and critical notifications always bypass settings
+    if (notification.priority === NotificationPriority.CRITICAL || 
+        notification.priority === NotificationPriority.URGENT ||
+        notification.category === NotificationCategory.EMERGENCY) {
+      return true;
+    }
+
     // Check if category is enabled
     if (!this.settings.categories[notification.category as keyof typeof this.settings.categories]) {
       return false;
@@ -115,8 +125,8 @@ export class NotificationService {
       return false;
     }
 
-    // Check quiet hours
-    if (this.isInQuietHours() && notification.priority !== NotificationPriority.CRITICAL) {
+    // Check quiet hours (critical and urgent already bypassed above)
+    if (this.isInQuietHours()) {
       return false;
     }
 
@@ -174,8 +184,8 @@ export class NotificationService {
     // In a real app, this would update the UI state
     console.log('In-app notification:', notification);
     
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 100));
+    // No delay - instant delivery
+    return Promise.resolve();
   }
 
   // Send push notification
@@ -209,8 +219,8 @@ export class NotificationService {
     // In a real app, this would call your email service
     console.log('Email notification:', notification);
     
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 200));
+    // Send immediately (in production, this would be a real API call)
+    return Promise.resolve();
   }
 
   // Send SMS notification
@@ -218,8 +228,8 @@ export class NotificationService {
     // In a real app, this would call your SMS service (Twilio, etc.)
     console.log('SMS notification:', notification);
     
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 300));
+    // Send immediately (in production, this would be a real API call)
+    return Promise.resolve();
   }
 
   // Generate unique ID

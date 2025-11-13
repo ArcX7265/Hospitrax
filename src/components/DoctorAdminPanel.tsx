@@ -12,6 +12,7 @@ const DoctorAdminPanel: React.FC = () => {
     note: ''
   });
   const [statusMsg, setStatusMsg] = useState('');
+  const [alertStatus, setAlertStatus] = useState('');
   const notificationService = NotificationService.getInstance();
   const resourceService = ResourceService.getInstance();
 
@@ -24,28 +25,45 @@ const DoctorAdminPanel: React.FC = () => {
 
   const submitResource = async (e: React.FormEvent) => {
     e.preventDefault();
-    // In a real app, persist to backend/Firestore here
-    setStatusMsg(`Added ${resourceForm.quantity} ${resourceForm.resourceType} to ${resourceForm.hospital}`);
-    // Update shared resource store for real-time table updates
-    resourceService.addOrUpdateResource({
-      hospital: resourceForm.hospital,
-      resourceType: resourceForm.resourceType,
-      quantity: resourceForm.quantity,
-      note: resourceForm.note,
-    });
-    // Inform via notification (resource update) - visible to all users
-    await notificationService.createNotification({
-      type: NotificationType.RESOURCE_AVAILABILITY,
-      title: '📦 Resource Update',
-      message: `${resourceForm.hospital}: Added ${resourceForm.quantity} ${resourceForm.resourceType}${resourceForm.note ? ` - ${resourceForm.note}` : ''}`,
-      isRead: false,
-      priority: NotificationPriority.MEDIUM,
-      category: NotificationCategory.RESOURCES,
-      deliveryChannels: [DeliveryChannel.IN_APP, DeliveryChannel.PUSH],
-      metadata: { ...resourceForm }
-    });
-    setResourceForm({ hospital: '', resourceType: 'beds', quantity: 1, note: '' });
-    setTimeout(() => setStatusMsg(''), 3000);
+    
+    if (!resourceForm.hospital.trim()) {
+      setStatusMsg('Please enter a hospital name');
+      setTimeout(() => setStatusMsg(''), 3000);
+      return;
+    }
+    
+    try {
+      // Update shared resource store for real-time table updates
+      resourceService.addOrUpdateResource({
+        hospital: resourceForm.hospital,
+        resourceType: resourceForm.resourceType,
+        quantity: resourceForm.quantity,
+        note: resourceForm.note,
+      });
+      
+      // Get resource label for display
+      const resourceLabel = resourceOptions.find(opt => opt.id === resourceForm.resourceType)?.label || resourceForm.resourceType;
+      
+      // Inform via notification (resource update) - visible to all users
+      await notificationService.createNotification({
+        type: NotificationType.RESOURCE_AVAILABILITY,
+        title: '📦 Resource Update',
+        message: `${resourceForm.hospital}: Added ${resourceForm.quantity} ${resourceLabel}${resourceForm.note ? ` - ${resourceForm.note}` : ''}`,
+        isRead: false,
+        priority: NotificationPriority.MEDIUM,
+        category: NotificationCategory.RESOURCES,
+        deliveryChannels: [DeliveryChannel.IN_APP, DeliveryChannel.PUSH],
+        metadata: { ...resourceForm }
+      });
+      
+      setStatusMsg(`✓ Successfully added ${resourceForm.quantity} ${resourceLabel} to ${resourceForm.hospital}`);
+      setResourceForm({ hospital: '', resourceType: 'beds', quantity: 1, note: '' });
+      setTimeout(() => setStatusMsg(''), 3000);
+    } catch (error) {
+      console.error('Error updating resource:', error);
+      setStatusMsg('Error updating resource. Please try again.');
+      setTimeout(() => setStatusMsg(''), 3000);
+    }
   };
 
   return (
@@ -130,19 +148,87 @@ const DoctorAdminPanel: React.FC = () => {
         </div>
         <div className="grid grid-cols-2 gap-3">
           <button
-            onClick={() => notificationService.createResourceAlert('ICU Beds', 'Shortage: < 3 available')}
-            className="px-3 py-2 bg-red-700 text-white rounded-lg hover:bg-red-600"
+            onClick={() => {
+              try {
+                // Send immediately - notification appears instantly
+                notificationService.createResourceAlert('ICU Beds', 'Shortage: < 3 available')
+                  .then(() => {
+                    setAlertStatus('✓ ICU alert sent successfully');
+                    setTimeout(() => setAlertStatus(''), 3000);
+                  })
+                  .catch(error => {
+                    console.error('Error sending alert:', error);
+                    setAlertStatus('Error sending alert');
+                    setTimeout(() => setAlertStatus(''), 3000);
+                  });
+                // Show success immediately since notification is sent instantly
+                setAlertStatus('✓ ICU alert sent successfully');
+                setTimeout(() => setAlertStatus(''), 3000);
+              } catch (error) {
+                console.error('Error sending alert:', error);
+                setAlertStatus('Error sending alert');
+                setTimeout(() => setAlertStatus(''), 3000);
+              }
+            }}
+            className="px-3 py-2 bg-red-700 text-white rounded-lg hover:bg-red-600 transition-colors"
           >
             <Send size={16} className="inline mr-2" /> ICU Shortage
           </button>
           <button
-            onClick={() => notificationService.createResourceAlert('Oxygen', 'Levels low in Ward B')}
-            className="px-3 py-2 bg-orange-700 text-white rounded-lg hover:bg-orange-600"
+            onClick={() => {
+              try {
+                // Send immediately - notification appears instantly
+                notificationService.createResourceAlert('Oxygen', 'Levels low in Ward B')
+                  .then(() => {
+                    setAlertStatus('✓ Oxygen alert sent successfully');
+                    setTimeout(() => setAlertStatus(''), 3000);
+                  })
+                  .catch(error => {
+                    console.error('Error sending alert:', error);
+                    setAlertStatus('Error sending alert');
+                    setTimeout(() => setAlertStatus(''), 3000);
+                  });
+                // Show success immediately since notification is sent instantly
+                setAlertStatus('✓ Oxygen alert sent successfully');
+                setTimeout(() => setAlertStatus(''), 3000);
+              } catch (error) {
+                console.error('Error sending alert:', error);
+                setAlertStatus('Error sending alert');
+                setTimeout(() => setAlertStatus(''), 3000);
+              }
+            }}
+            className="px-3 py-2 bg-orange-700 text-white rounded-lg hover:bg-orange-600 transition-colors"
           >
             <Send size={16} className="inline mr-2" /> Oxygen Low
           </button>
         </div>
+        {alertStatus && (
+          <p className={`text-xs mt-3 ${alertStatus.startsWith('✓') ? 'text-green-400' : alertStatus.startsWith('Error') ? 'text-red-400' : 'text-yellow-400'}`}>
+            {alertStatus}
+          </p>
+        )}
         <p className="text-xs text-gray-400 mt-3">Sends alerts to all users (patients and staff).</p>
+        <div className="mt-4 pt-4 border-t border-gray-700">
+          <p className="text-sm text-gray-300 mb-3 font-semibold">Alert Definitions:</p>
+          <div className="space-y-4">
+            <div>
+              <p className="text-sm text-gray-300 mb-2 font-medium">ICU Shortage:</p>
+              <ul className="text-sm text-gray-400 space-y-1.5 list-disc list-inside leading-relaxed">
+                <li>Triggered when ICU bed availability falls below 3 beds</li>
+                <li>Notifies all medical staff, administrators, and relevant personnel</li>
+                <li>Requires immediate coordination of bed availability and patient transfers</li>
+              </ul>
+            </div>
+            <div>
+              <p className="text-sm text-gray-300 mb-2 font-medium">Oxygen Low:</p>
+              <ul className="text-sm text-gray-400 space-y-1.5 list-disc list-inside leading-relaxed">
+                <li>Activated when oxygen supply levels drop below safe operational thresholds</li>
+                <li>Immediately notifies supply chain management, respiratory therapy teams, and administrators</li>
+                <li>Initiates emergency restocking procedures to ensure continuous patient care</li>
+              </ul>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

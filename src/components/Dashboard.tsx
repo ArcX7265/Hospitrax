@@ -33,59 +33,84 @@ const Dashboard: React.FC<DashboardProps> = ({ role }) => {
   const handleResourceRequest = async (request: any) => {
     console.log('Resource request submitted:', request);
     
-    // Create notification for admin/doctors about the resource request
-    await notificationService.createResourceRequest({
-      hospital: request.hospital,
-      resourceType: request.resourceType,
-      quantity: request.quantity,
-      priority: request.priority,
-      description: request.description || '',
-    });
-    
-    // Here you would typically send the request to your backend
+    try {
+      // Import ResourceService to update the resource table
+      const ResourceService = (await import('../services/ResourceService')).default;
+      const resourceService = ResourceService.getInstance();
+      
+      // Update the resource service IMMEDIATELY (synchronous)
+      resourceService.addOrUpdateResource({
+        hospital: request.hospital,
+        resourceType: request.resourceType,
+        quantity: -request.quantity, // Negative to indicate it's a request/need
+        note: `Request: ${request.description || 'No description'}`,
+      });
+      
+      // Create notification IMMEDIATELY (fire and forget for instant delivery)
+      notificationService.createResourceRequest({
+        hospital: request.hospital,
+        resourceType: request.resourceType,
+        quantity: request.quantity,
+        priority: request.priority,
+        description: request.description || '',
+      }).catch(error => {
+        console.error('Error creating notification:', error);
+      });
+    } catch (error) {
+      console.error('Error handling resource request:', error);
+      // Show error to user if possible
+      alert('Failed to submit resource request. Please try again.');
+    }
   };
 
   const handleEmergencyAlert = async (alert: any) => {
     console.log('Emergency alert sent:', alert);
     
-    // Build detailed message with all alert information
-    const severityLabels: Record<string, string> = {
-      low: 'Low',
-      medium: 'Medium',
-      high: 'High',
-      critical: 'Critical'
-    };
-    
-    const typeLabels: Record<string, string> = {
-      medical: 'Medical Emergency',
-      equipment: 'Equipment Failure',
-      staff: 'Staff Shortage',
-      other: 'Other Emergency'
-    };
-    
-    const severityLabel = severityLabels[alert.severity] || alert.severity;
-    const typeLabel = typeLabels[alert.type] || alert.type;
-    
-    // Create detailed message
-    let message = `${typeLabel} - ${severityLabel} Priority\n\n`;
-    if (alert.description) {
-      message += `Description: ${alert.description}\n`;
+    try {
+      // Build detailed message with all alert information
+      const severityLabels: Record<string, string> = {
+        low: 'Low',
+        medium: 'Medium',
+        high: 'High',
+        critical: 'Critical'
+      };
+      
+      const typeLabels: Record<string, string> = {
+        medical: 'Medical Emergency',
+        equipment: 'Equipment Failure',
+        staff: 'Staff Shortage',
+        other: 'Other Emergency'
+      };
+      
+      const severityLabel = severityLabels[alert.severity] || alert.severity;
+      const typeLabel = typeLabels[alert.type] || alert.type;
+      
+      // Create detailed message
+      let message = `${typeLabel} - ${severityLabel} Priority\n\n`;
+      if (alert.description) {
+        message += `Description: ${alert.description}\n`;
+      }
+      if (alert.location) {
+        message += `Location: ${alert.location}\n`;
+      }
+      if (alert.contact) {
+        message += `Contact: ${alert.contact}\n`;
+      }
+      
+      // Create emergency notification IMMEDIATELY (fire and forget for instant delivery)
+      notificationService.createEmergencyAlert(
+        message.trim(),
+        alert.location,
+        alert.severity,
+        alert.type,
+        alert.contact
+      ).catch(error => {
+        console.error('Error creating emergency notification:', error);
+      });
+    } catch (error) {
+      console.error('Error sending emergency alert:', error);
+      alert('Failed to send emergency alert. Please try again.');
     }
-    if (alert.location) {
-      message += `Location: ${alert.location}\n`;
-    }
-    if (alert.contact) {
-      message += `Contact: ${alert.contact}\n`;
-    }
-    
-    // Create emergency notification with all details
-    await notificationService.createEmergencyAlert(
-      message.trim(),
-      alert.location,
-      alert.severity,
-      alert.type,
-      alert.contact
-    );
   };
 
   // Initialize notification service

@@ -4,8 +4,8 @@ import { Percent } from 'lucide-react';
 
 const ResourceChart: React.FC = () => {
   const data = [
-    { name: 'Available', value: 80.8, color: '#FFFFFF' },
-    { name: 'In Use', value: 19.2, color: '#6B7280' },
+    { name: 'Available', value: 82.4, color: '#FFFFFF' },
+    { name: 'In Use', value: 17.5, color: '#6B7280' },
   ];
 
   // Removed unused custom label to satisfy linter
@@ -61,7 +61,7 @@ const ResourceChart: React.FC = () => {
             <div className="w-3 h-3 bg-gray-500 rounded-full"></div>
             <span className="text-gray-400 text-sm">In Use</span>
           </div>
-          <span className="text-white font-semibold">$11.3k</span>
+          <span className="text-white font-semibold">635</span>
         </div>
       </div>
     </div>

@@ -60,40 +60,81 @@ class ResourceService {
       icu: 'ICU Beds',
       oxygen: 'Oxygen Tanks',
       ventilators: 'Ventilators',
-      staff: 'Staff',
+      staff: 'Medical Staff',
     } as const;
 
     const label = mapLabel[args.resourceType] || args.resourceType;
 
+    // Handle negative quantities as requests (needs)
+    const isRequest = args.quantity < 0;
+    const absQuantity = Math.abs(args.quantity);
+
     // Try to find existing row for same hospital + resource
     const idx = this.resources.findIndex(r => r.hospital === args.hospital && r.resource === label);
     if (idx >= 0) {
-      // naive update: bump totals and adjust progress
       const current = this.resources[idx];
-      const [a, b] = current.total.split('/').map(x => parseInt(x, 10));
-      const newAvailable = Math.max(0, a + args.quantity);
-      const newTotal = b || newAvailable;
-      const updated: ResourceItem = {
-        ...current,
-        total: `${newAvailable}/${newTotal}`,
-        progress: Math.max(0, Math.min(100, Math.round((newAvailable / (newTotal || 1)) * 100))),
-        status: newAvailable <= 3 ? 'Urgent' : newAvailable < newTotal / 2 ? 'In Progress' : 'Available',
-      };
-      this.resources[idx] = updated;
+      
+      if (isRequest) {
+        // For requests, update to show the need/request
+        const [a, b] = current.total.split('/').map(x => parseInt(x, 10) || 0);
+        const newTotal = Math.max(b, absQuantity);
+        const updated: ResourceItem = {
+          ...current,
+          total: `${a}/${newTotal} (Need: ${absQuantity})`,
+          progress: Math.max(0, Math.min(100, Math.round((a / (newTotal || 1)) * 100))),
+          status: a < absQuantity ? 'Urgent' : a < newTotal / 2 ? 'In Progress' : 'Available',
+          priority: a < absQuantity ? 'urgent' : 'high',
+        };
+        this.resources[idx] = updated;
+      } else {
+        // For additions, bump totals and adjust progress
+        const [a, b] = current.total.split('/').map(x => {
+          // Handle format like "8/12 (Need: 5)" by extracting just the numbers
+          const num = parseInt(x.split(' ')[0], 10) || 0;
+          return num;
+        });
+        const newAvailable = Math.max(0, a + args.quantity);
+        const newTotal = Math.max(b, newAvailable);
+        const updated: ResourceItem = {
+          ...current,
+          total: `${newAvailable}/${newTotal}`,
+          progress: Math.max(0, Math.min(100, Math.round((newAvailable / (newTotal || 1)) * 100))),
+          status: newAvailable <= 3 ? 'Urgent' : newAvailable < newTotal / 2 ? 'In Progress' : 'Available',
+          priority: newAvailable <= 3 ? 'urgent' : newAvailable < newTotal / 2 ? 'high' : 'medium',
+        };
+        this.resources[idx] = updated;
+      }
     } else {
       // create a new row
-      const created: ResourceItem = {
-        id: this.id(),
-        hospital: args.hospital,
-        resource: label,
-        status: args.quantity <= 3 ? 'Urgent' : args.quantity < 10 ? 'In Progress' : 'Available',
-        progress: Math.max(0, Math.min(100, Math.round((args.quantity / Math.max(10, args.quantity)) * 100))),
-        total: `${args.quantity}/${Math.max(10, args.quantity)}`,
-        createdDate: new Date().toLocaleDateString('en-GB'),
-        dueDate: '—',
-        priority: args.quantity <= 3 ? 'urgent' : args.quantity < 10 ? 'high' : 'medium',
-      };
-      this.resources = [created, ...this.resources];
+      if (isRequest) {
+        // For requests, show as urgent need
+        const created: ResourceItem = {
+          id: this.id(),
+          hospital: args.hospital,
+          resource: label,
+          status: 'Urgent',
+          progress: 0,
+          total: `0/${absQuantity} (Requested)`,
+          createdDate: new Date().toLocaleDateString('en-GB'),
+          dueDate: '—',
+          priority: 'urgent',
+        };
+        this.resources = [created, ...this.resources];
+      } else {
+        // For additions, create normal entry
+        const created: ResourceItem = {
+          id: this.id(),
+          hospital: args.hospital,
+          resource: label,
+          status: args.quantity <= 3 ? 'Urgent' : args.quantity < 10 ? 'In Progress' : 'Available',
+          progress: Math.max(0, Math.min(100, Math.round((args.quantity / Math.max(10, args.quantity)) * 100))),
+          total: `${args.quantity}/${Math.max(10, args.quantity)}`,
+          createdDate: new Date().toLocaleDateString('en-GB'),
+          dueDate: '—',
+          priority: args.quantity <= 3 ? 'urgent' : args.quantity < 10 ? 'high' : 'medium',
+        };
+        this.resources = [created, ...this.resources];
+      }
     }
     this.emit();
   }
